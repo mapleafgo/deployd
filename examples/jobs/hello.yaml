@@ -1,0 +1,21 @@
+token: your-webhook-token-here
+workdir: /tmp
+timeout: 5m
+queue: wait
+parallel: false
+
+env:
+  GREETING: hello
+
+steps:
+  - name: greet
+    env:
+      NAME: 666
+    commands:
+      - echo $GREETING $NAME
+      - date
+
+  - name: info
+    commands:
+      - pwd
+      - whoami

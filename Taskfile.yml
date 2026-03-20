@@ -1,0 +1,53 @@
+version: "3"
+
+vars:
+  BINARY: deployd
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  LDFLAGS: -s -w -X main.Version={{.VERSION}}
+
+tasks:
+  build:
+    desc: Build binary
+    cmds:
+      - go build -ldflags "{{.LDFLAGS}}" -o bin/{{.BINARY}} ./cmd/{{.BINARY}}
+
+  install:
+    desc: Install binary and systemd service
+    cmds:
+      - sudo cp bin/{{.BINARY}} /usr/local/bin/
+      - sudo cp examples/deployd.service /etc/systemd/system/
+      - sudo systemctl daemon-reload
+
+  run:
+    desc: Run locally with example config
+    cmds:
+      - ./bin/{{.BINARY}} -c examples/config.yaml
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -rf bin/
+
+  test:
+    desc: Run tests
+    cmds:
+      - go test -v ./...
+
+  lint:
+    desc: Run linter
+    cmds:
+      - go vet ./...
+
+  fmt:
+    desc: Format code
+    cmds:
+      - go fmt ./...
+
+  all:
+    desc: Format, lint, test and build
+    cmds:
+      - task: fmt
+      - task: lint
+      - task: test
+      - task: build

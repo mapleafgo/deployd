@@ -1,0 +1,24 @@
+[Unit]
+Description=Deployd - Webhook-triggered command execution service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+ExecStart=/usr/local/bin/deployd -c /etc/deployd/config.yaml
+Restart=on-failure
+RestartSec=5s
+
+# 日志
+StandardOutput=journal
+StandardError=journal
+
+# 安全限制
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/deployd
+
+[Install]
+WantedBy=multi-user.target

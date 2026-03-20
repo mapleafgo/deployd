@@ -1,0 +1,5 @@
+# deployd 全局配置示例
+token: your-admin-token-here
+port: 8080
+config_dir: ./examples/jobs
+log_dir: ./logs
