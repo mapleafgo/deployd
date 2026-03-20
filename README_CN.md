@@ -1,5 +1,7 @@
 # deployd
 
+[English](README.md)
+
 轻量级 Webhook 触发的命令执行服务。
 
 ## 功能特性

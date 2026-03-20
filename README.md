@@ -1,5 +1,7 @@
 # deployd
 
+[中文](README_CN.md)
+
 A lightweight command execution service triggered by webhooks.
 
 ## Features
