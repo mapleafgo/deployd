@@ -93,10 +93,9 @@ func (r *Runner) runStep(ctx context.Context, step config.StepConfig) bool {
 
 	// 合并环境变量
 	env := r.cfg.MergeEnv(step.Env)
+	// 用传入的环境变量覆盖同名变量（已通过白名单过滤）
 	for k, v := range r.env {
-		if _, ok := env[k]; ok {
-			env[k] = v
-		}
+		env[k] = v
 	}
 
 	// 确定工作目录
