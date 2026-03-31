@@ -10,7 +10,7 @@ tasks:
   build:
     desc: Build binary
     cmds:
-      - go build -ldflags "{{.LDFLAGS}}" -o bin/{{.BINARY}} ./cmd/{{.BINARY}}
+      - go build -ldflags "{{.LDFLAGS}}" -o bin/{{.BINARY}} .
 
   install:
     desc: Install binary and systemd service

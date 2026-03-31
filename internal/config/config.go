@@ -62,17 +62,38 @@ func Load(configPath string) (*Config, error) {
 	return &cfg, nil
 }
 
+// findConfigFile 在配置目录中查找任务配置文件（支持 .yaml 和 .yml）
+func findConfigFile(configDir, name string) (string, []byte, error) {
+	extensions := []string{".yaml", ".yml"}
+
+	for _, ext := range extensions {
+		path := filepath.Join(configDir, name+ext)
+		data, err := os.ReadFile(path)
+		if err == nil {
+			return path, data, nil
+		}
+	}
+
+	// 所有扩展名都尝试失败，返回友好的错误信息
+	return "", nil, fmt.Errorf("config file not found: tried %s.yaml and %s.yml in %s", name, name, configDir)
+}
+
 // LoadJob 加载任务配置
 func LoadJob(configDir, name string) (*JobConfig, error) {
-	path := filepath.Join(configDir, name+".yaml")
-
-	data, err := os.ReadFile(path)
+	// 查找并读取配置文件
+	_, data, err := findConfigFile(configDir, name)
 	if err != nil {
 		return nil, err
 	}
 
+	// 解析 YAML
 	var cfg JobConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, fmt.Errorf("failed to parse config: %w", err)
+	}
+
+	// 验证配置的完整性和合法性
+	if err := ValidateJobConfig(&cfg); err != nil {
 		return nil, err
 	}
 
@@ -127,48 +148,4 @@ func (j *JobConfig) MergeEnv(stepEnv map[string]string) map[string]string {
 	maps.Copy(result, stepEnv)
 
 	return result
-}
-
-// Validate 验证任务配置
-func (j *JobConfig) Validate() error {
-	if j.Token == "" {
-		return ErrTokenRequired
-	}
-	if j.Workdir == "" {
-		return ErrWorkdirRequired
-	}
-	if len(j.Steps) == 0 {
-		return ErrStepsRequired
-	}
-
-	// 检查工作目录是否存在（可选，不存在时使用默认值）
-	if j.Workdir != "" {
-		if _, err := os.Stat(j.Workdir); err != nil {
-			if os.IsNotExist(err) {
-				// 目录不存在时创建它
-				if err := os.MkdirAll(j.Workdir, 0755); err != nil {
-					return fmt.Errorf("failed to create workdir: %w", err)
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
-// 错误定义
-var (
-	ErrTokenRequired   = &ConfigError{Msg: "token is required"}
-	ErrWorkdirRequired = &ConfigError{Msg: "workdir is required"}
-	ErrStepsRequired   = &ConfigError{Msg: "steps is required"}
-	ErrWorkdirNotExist = &ConfigError{Msg: "workdir does not exist"}
-)
-
-// ConfigError 配置错误
-type ConfigError struct {
-	Msg string
-}
-
-func (e *ConfigError) Error() string {
-	return e.Msg
 }

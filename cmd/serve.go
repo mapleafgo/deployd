@@ -1,7 +1,8 @@
-// cmd/deployd/main.go
-package main
+// cmd/serve.go
+package cmd
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,53 +18,63 @@ import (
 	"github.com/mapleafgo/deployd/internal/job"
 	"github.com/mapleafgo/deployd/internal/logger"
 	"github.com/mapleafgo/deployd/internal/store"
-	"github.com/spf13/cobra"
+	"github.com/urfave/cli/v3"
 )
 
-var configPath string
+// NewServeCommand creates the serve command
+func NewServeCommand() *cli.Command {
+	var configPath string
 
-var rootCmd = &cobra.Command{
-	Use:   "deployd",
-	Short: "A webhook-triggered command execution service",
-	Run:   run,
+	return &cli.Command{
+		Name:  "serve",
+		Usage: "Start the deployd service",
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "config",
+				Aliases:     []string{"c"},
+				Value:       "/etc/deployd/config.yaml",
+				Usage:       "Config file path",
+				Sources:     cli.EnvVars("DEPLOYD_CONFIG"),
+				Destination: &configPath,
+			},
+		},
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return runServe(configPath)
+		},
+	}
 }
 
-func init() {
-	rootCmd.Flags().StringVarP(&configPath, "config", "c", "/etc/deployd/config.yaml", "config file path")
-}
-
-func run(cmd *cobra.Command, args []string) {
-	// 加载配置
+// runServe starts the deployd service
+func runServe(configPath string) error {
+	// Load configuration
 	cfg, err := config.Load(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// 创建日志目录
+	// Create log directory
 	if err := os.MkdirAll(cfg.LogDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create log directory: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to create log directory: %w", err)
 	}
 
-	// 初始化日志
+	// Initialize logger
 	log := logger.NewServiceLogger(cfg.LogDir)
 	slog.SetDefault(log)
 
 	slog.Info("Starting deployd", "port", cfg.Port, "config_dir", cfg.ConfigDir, "log_dir", cfg.LogDir)
 
-	// 初始化
+	// Initialize components
 	s := store.New()
 	manager := job.NewManager(s, cfg.LogDir, log)
 	hookHandler := handler.NewHookHandler(manager, cfg.ConfigDir)
 	apiHandler := handler.NewAPIHandler(s, cfg, log)
 
-	// 创建 Echo 实例
+	// Create Echo instance
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
 
-	// 中间件
+	// Middleware
 	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
 		LogStatus:  true,
 		LogMethod:  true,
@@ -76,7 +87,7 @@ func run(cmd *cobra.Command, args []string) {
 	}))
 	e.Use(middleware.Recover())
 
-	// 路由
+	// Routes
 	e.GET("/hook/:name", hookHandler.Trigger)
 
 	api := e.Group("/api", apiHandler.AuthMiddleware())
@@ -91,7 +102,7 @@ func run(cmd *cobra.Command, args []string) {
 		"GET /api/cancel/:id",
 	})
 
-	// 优雅关闭
+	// Graceful shutdown
 	go func() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -100,17 +111,12 @@ func run(cmd *cobra.Command, args []string) {
 		e.Close()
 	}()
 
-	// 启动服务
+	// Start server
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	slog.Info("Server started", "addr", addr)
 	if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
-		slog.Error("Server stopped", "error", err)
+		return fmt.Errorf("server stopped: %w", err)
 	}
-}
 
-func main() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
+	return nil
 }
