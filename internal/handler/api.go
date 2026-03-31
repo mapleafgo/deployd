@@ -2,10 +2,12 @@
 package handler
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -68,23 +70,42 @@ type JobInfo struct {
 	UpdatedAt string `json:"updated_at"`
 }
 
+// buildJobInfo 从日志文件条目构建 JobInfo
+func buildJobInfo(entry os.DirEntry, name string) (JobInfo, bool) {
+	if !strings.HasSuffix(entry.Name(), ".log") {
+		return JobInfo{}, false
+	}
+
+	info, err := entry.Info()
+	if err != nil {
+		return JobInfo{}, false
+	}
+
+	return JobInfo{
+		ID:        strings.TrimSuffix(entry.Name(), ".log"),
+		Name:      name,
+		LogFile:   entry.Name(),
+		UpdatedAt: info.ModTime().Format("2006-01-02 15:04:05"),
+	}, true
+}
+
 func (h *APIHandler) listJobs(c echo.Context, jobsDir, name string, limit int) error {
 	entries, err := os.ReadDir(filepath.Join(jobsDir, name))
 	if err != nil {
-		return c.JSON(http.StatusOK, map[string]any{"jobs": []JobInfo{}, "total": 0})
+		if errors.Is(err, os.ErrNotExist) {
+			return c.JSON(http.StatusOK, map[string]any{"jobs": []JobInfo{}, "total": 0})
+		}
+		h.log.Error("failed to read job directory", "path", filepath.Join(jobsDir, name), "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to read jobs"})
 	}
 
-	var jobs []JobInfo
+	// 预分配容量
+	jobs := make([]JobInfo, 0, min(len(entries), limit))
+
+	// 反向遍历，获取最新的日志
 	for i := len(entries) - 1; i >= 0 && len(jobs) < limit; i-- {
-		if entry := entries[i]; strings.HasSuffix(entry.Name(), ".log") {
-			if info, err := entry.Info(); err == nil {
-				jobs = append(jobs, JobInfo{
-					ID:        strings.TrimSuffix(entry.Name(), ".log"),
-					Name:      name,
-					LogFile:   entry.Name(),
-					UpdatedAt: info.ModTime().Format("2006-01-02 15:04:05"),
-				})
-			}
+		if jobInfo, ok := buildJobInfo(entries[i], name); ok {
+			jobs = append(jobs, jobInfo)
 		}
 	}
 
@@ -94,36 +115,48 @@ func (h *APIHandler) listJobs(c echo.Context, jobsDir, name string, limit int) e
 func (h *APIHandler) listAllJobs(c echo.Context, jobsDir string, limit int) error {
 	taskDirs, err := os.ReadDir(jobsDir)
 	if err != nil {
-		return c.JSON(http.StatusOK, map[string]any{"jobs": []JobInfo{}, "total": 0})
+		if errors.Is(err, os.ErrNotExist) {
+			return c.JSON(http.StatusOK, map[string]any{"jobs": []JobInfo{}, "total": 0})
+		}
+		h.log.Error("failed to read jobs directory", "path", jobsDir, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to read jobs"})
 	}
 
-	var jobs []JobInfo
+	// 预分配容量
+	jobs := make([]JobInfo, 0, limit*2)
+
+	// 收集所有任务的日志
 	for _, taskDir := range taskDirs {
 		if !taskDir.IsDir() {
 			continue
 		}
 
 		name := taskDir.Name()
-		entries, _ := os.ReadDir(filepath.Join(jobsDir, name))
+		entries, err := os.ReadDir(filepath.Join(jobsDir, name))
+		if err != nil {
+			continue // 跳过无法读取的目录
+		}
+
 		for _, entry := range entries {
-			if strings.HasSuffix(entry.Name(), ".log") {
-				if info, err := entry.Info(); err == nil {
-					jobs = append(jobs, JobInfo{
-						ID:        strings.TrimSuffix(entry.Name(), ".log"),
-						Name:      name,
-						LogFile:   entry.Name(),
-						UpdatedAt: info.ModTime().Format("2006-01-02 15:04:05"),
-					})
-				}
+			if jobInfo, ok := buildJobInfo(entry, name); ok {
+				jobs = append(jobs, jobInfo)
 			}
 		}
 	}
 
-	// 按时间倒序
-	for i, j := 0, len(jobs)-1; i < j; i, j = i+1, j-1 {
-		jobs[i], jobs[j] = jobs[j], jobs[i]
-	}
+	// 按时间倒序排序
+	slices.SortFunc(jobs, func(a, b JobInfo) int {
+		// 按更新时间降序排序（字符串比较即可，因为是 ISO 8601 格式）
+		if a.UpdatedAt > b.UpdatedAt {
+			return -1
+		}
+		if a.UpdatedAt < b.UpdatedAt {
+			return 1
+		}
+		return 0
+	})
 
+	// 限制返回数量
 	if len(jobs) > limit {
 		jobs = jobs[:limit]
 	}
