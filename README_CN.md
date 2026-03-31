@@ -117,9 +117,15 @@ steps:
 ### 启动服务
 
 ```bash
+# 前台运行
 ./bin/deployd serve
 # 或指定配置文件路径
 ./bin/deployd serve -c /path/to/config.yaml
+
+# 守护进程模式（后台运行）
+./bin/deployd serve -d
+# 或使用长选项
+./bin/deployd serve --daemon
 ```
 
 ### 验证任务配置

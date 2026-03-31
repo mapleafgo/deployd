@@ -117,9 +117,15 @@ steps:
 ### Start the server
 
 ```bash
+# Foreground mode
 ./bin/deployd serve
 # Or with custom config path
 ./bin/deployd serve -c /path/to/config.yaml
+
+# Daemon mode (background process)
+./bin/deployd serve -d
+# Or with long option
+./bin/deployd serve --daemon
 ```
 
 ### Validate job configurations
