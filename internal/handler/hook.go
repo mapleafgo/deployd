@@ -66,7 +66,6 @@ func (h *HookHandler) Trigger(c echo.Context) error {
 		})
 	}
 
-	slog.Info("job triggered", "job", name, "job_id", jobID, "queue", cfg.Queue)
 	return c.JSON(http.StatusOK, map[string]string{
 		"job_id":  jobID,
 		"message": "Job triggered",
