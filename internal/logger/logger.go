@@ -2,6 +2,7 @@
 package logger
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -9,6 +10,11 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+)
+
+// 常量定义
+const (
+	MB = 1024 * 1024 // 1MB in bytes
 )
 
 // RotatingFileWriter 支持按大小轮转的文件写入器
@@ -26,23 +32,27 @@ func NewRotatingFileWriter(path string, maxSizeMB int, maxBackups int) (*Rotatin
 	// 确保目录存在
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create log directory: %w", err)
 	}
 
 	// 打开或创建文件
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open log file: %w", err)
 	}
 
-	// 获取当前文件大小
-	info, _ := file.Stat()
+	// 获取当前文件大小（P0 修复：正确处理错误）
+	info, err := file.Stat()
+	if err != nil {
+		file.Close()
+		return nil, fmt.Errorf("stat log file: %w", err)
+	}
 	currentSize := info.Size()
 
 	return &RotatingFileWriter{
 		file:       file,
 		path:       path,
-		maxSize:    int64(maxSizeMB) * 1024 * 1024, // 转换为字节
+		maxSize:    int64(maxSizeMB) * MB, // 使用常量
 		maxBackups: maxBackups,
 		current:    currentSize,
 	}, nil
@@ -56,7 +66,7 @@ func (w *RotatingFileWriter) Write(p []byte) (n int, err error) {
 	// 检查是否需要轮转
 	if w.current+int64(len(p)) > w.maxSize {
 		if err := w.rotate(); err != nil {
-			return 0, err
+			return 0, fmt.Errorf("log rotation failed: %w", err)
 		}
 	}
 
@@ -65,40 +75,67 @@ func (w *RotatingFileWriter) Write(p []byte) (n int, err error) {
 	return n, err
 }
 
-// rotate 执行日志轮转
+// rotate 执行日志轮转（P0 修复：改进原子性，P1: 使用 errors.Join）
 func (w *RotatingFileWriter) rotate() error {
-	// 关闭当前文件
+	// 步骤 1: 关闭当前文件
 	if err := w.file.Close(); err != nil {
-		return err
+		return fmt.Errorf("close current log file: %w", err)
 	}
 
-	// 删除最旧的备份
-	if w.maxBackups > 0 {
-		oldestBackup := filepath.Join(w.path, fmt.Sprintf(".%d", w.maxBackups))
-		os.Remove(oldestBackup)
-	}
-
-	// 重命名备份文件
-	for i := w.maxBackups - 1; i >= 1; i-- {
-		oldPath := filepath.Join(w.path, fmt.Sprintf(".%d", i))
-		newPath := filepath.Join(w.path, fmt.Sprintf(".%d", i+1))
-		os.Rename(oldPath, newPath)
-	}
-
-	// 重命名当前文件为第一个备份
-	if w.maxBackups > 0 {
-		backupPath := filepath.Join(w.path, ".1")
-		os.Rename(w.path, backupPath)
-	}
-
-	// 创建新文件
-	file, err := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	// 步骤 2: 创建临时新文件（确保能创建）
+	tmpPath := w.path + ".tmp"
+	newFile, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
-		return err
+		// 创建失败，尝试重新打开原文件
+		if recoverFile, openErr := os.OpenFile(w.path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600); openErr == nil {
+			w.file = recoverFile
+			return fmt.Errorf("create new log file: %w", err)
+		}
+		return fmt.Errorf("create new log file and recover failed: %w", err)
 	}
 
-	w.file = file
+	// 步骤 3: 重命名备份文件（非阻塞，收集错误）
+	var errs []error
+	for i := w.maxBackups - 1; i >= 1; i-- {
+		oldPath := fmt.Sprintf("%s.%d", w.path, i)
+		newPath := fmt.Sprintf("%s.%d", w.path, i+1)
+		if err := os.Rename(oldPath, newPath); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf("rename %s to %s: %w", oldPath, newPath, err))
+		}
+	}
+
+	// 步骤 4: 当前文件重命名为第一个备份
+	if w.maxBackups > 0 {
+		backupPath := w.path + ".1"
+		if err := os.Rename(w.path, backupPath); err != nil && !os.IsNotExist(err) {
+			errs = append(errs, fmt.Errorf("backup current file: %w", err))
+		}
+	}
+
+	// 步骤 5: 删除最旧的备份
+	if w.maxBackups > 0 {
+		oldestBackup := fmt.Sprintf("%s.%d", w.path, w.maxBackups)
+		if err := os.Remove(oldestBackup); err != nil && !os.IsNotExist(err) {
+			// 忽略删除失败（文件可能不存在）
+		}
+	}
+
+	// 步骤 6: 临时文件原子性地重命名为正式文件名
+	if err := os.Rename(tmpPath, w.path); err != nil {
+		newFile.Close()
+		return fmt.Errorf("rename new log file: %w", err)
+	}
+
+	w.file = newFile
 	w.current = 0
+
+	// 步骤 7: 如果有重命名错误，记录但不失败（P1: 使用 errors.Join）
+	if len(errs) > 0 {
+		slog.Warn("some backup files failed to rename during rotation",
+			"file", w.path,
+			"errors", errors.Join(errs...))
+	}
+
 	return nil
 }
 
