@@ -14,10 +14,12 @@ import (
 
 // Config 全局配置
 type Config struct {
-	Token     string `mapstructure:"token" yaml:"token"`
-	Port      int    `mapstructure:"port" yaml:"port"`
-	ConfigDir string `mapstructure:"config_dir" yaml:"config_dir"`
-	LogDir    string `mapstructure:"log_dir" yaml:"log_dir"`
+	Token        string `mapstructure:"token" yaml:"token"`
+	Port         int    `mapstructure:"port" yaml:"port"`
+	ConfigDir    string `mapstructure:"config_dir" yaml:"config_dir"`
+	LogDir       string `mapstructure:"log_dir" yaml:"log_dir"`
+	LogMaxSize   int    `mapstructure:"log_max_size" yaml:"log_max_size"`         // 日志文件最大大小（MB）
+	LogMaxBackups int   `mapstructure:"log_max_backups" yaml:"log_max_backups"`   // 保留的旧日志文件数量
 }
 
 // JobConfig 任务配置
@@ -49,6 +51,8 @@ func Load(configPath string) (*Config, error) {
 	v.SetDefault("port", 8080)
 	v.SetDefault("config_dir", "/etc/deployd/jobs")
 	v.SetDefault("log_dir", "/var/log/deployd")
+	v.SetDefault("log_max_size", 100)      // 默认 100MB
+	v.SetDefault("log_max_backups", 3)     // 默认保留 3 个备份
 
 	if err := v.ReadInConfig(); err != nil {
 		return nil, err

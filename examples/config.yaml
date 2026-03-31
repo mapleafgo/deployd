@@ -3,3 +3,7 @@ token: your-admin-token-here
 port: 8080
 config_dir: ./examples/jobs
 log_dir: ./logs
+
+# 日志轮转配置（可选）
+log_max_size: 100      # 服务日志文件最大大小（MB），默认 100
+log_max_backups: 3     # 保留的旧日志文件数量，默认 3

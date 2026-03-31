@@ -108,7 +108,7 @@ func runServe(configPath string, daemon bool) error {
 	}
 
 	// Initialize logger
-	log := logger.NewServiceLogger(cfg.LogDir)
+	log := logger.NewServiceLogger(cfg.LogDir, cfg.LogMaxSize, cfg.LogMaxBackups)
 	slog.SetDefault(log)
 
 	slog.Info("Starting deployd", "port", cfg.Port, "config_dir", cfg.ConfigDir, "log_dir", cfg.LogDir)
