@@ -4,6 +4,7 @@ package job
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"sync"
@@ -93,10 +94,8 @@ func (r *Runner) runStep(ctx context.Context, step config.StepConfig) bool {
 
 	// 合并环境变量
 	env := r.cfg.MergeEnv(step.Env)
-	// 用传入的环境变量覆盖同名变量（已通过白名单过滤）
-	for k, v := range r.env {
-		env[k] = v
-	}
+	// 用传入的环境变量覆盖同名变量
+	maps.Copy(env, r.env)
 
 	// 确定工作目录
 	workdir := step.Workdir
