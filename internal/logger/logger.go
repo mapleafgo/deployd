@@ -30,9 +30,9 @@ func New(logDir, jobID, jobName string) (*Logger, error) {
 		return nil, err
 	}
 
-	// 创建日志文件
+	// 创建日志文件（仅所有者可读写，保护敏感信息）
 	logPath := filepath.Join(jobLogDir, jobID+".log")
-	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return nil, err
 	}
@@ -134,7 +134,8 @@ func ReadLog(logDir, jobID, jobName string) (string, error) {
 // NewServiceLogger 创建服务日志记录器
 func NewServiceLogger(logDir string) *slog.Logger {
 	logPath := filepath.Join(logDir, "deployd.log")
-	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	// 使用 0600 权限（仅所有者可读写），保护敏感信息
+	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 	if err != nil {
 		return slog.New(slog.NewTextHandler(os.Stderr, nil))
 	}
