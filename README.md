@@ -13,6 +13,8 @@ A lightweight command execution service triggered by webhooks.
 - Serial or parallel step execution modes
 - Timeout control for job execution
 - Comprehensive logging with per-job log files
+- Automatic service log rotation based on file size
+- Daemon mode support
 - RESTful API for job management
 
 ## Installation
@@ -41,7 +43,30 @@ token: your-admin-token-here  # Token for admin API access
 port: 8080                     # Server port
 config_dir: /etc/deployd/jobs  # Directory containing job configs
 log_dir: /var/log/deployd     # Directory for job logs
+
+# Log rotation configuration (optional)
+log_max_size: 100             # Service log file max size (MB), default 100
+log_max_backups: 3            # Number of backups to keep, default 3
 ```
+
+### Log Rotation
+
+The service log file (`deployd.log`) automatically rotates when it reaches the specified size:
+
+```
+<log_dir>/
+├── deployd.log         # Current log (being written)
+├── deployd.log.1       # 1st backup (most recent)
+├── deployd.log.2       # 2nd backup
+└── deployd.log.3       # 3rd backup (oldest)
+```
+
+Rotation rules:
+- When `deployd.log` reaches `log_max_size`, rotation is triggered
+- Old backup files are renamed sequentially (`.1` → `.2`, `.2` → `.3`)
+- Current log is renamed to `.1`
+- New empty `deployd.log` is created for continued writing
+- Backups exceeding `log_max_backups` are deleted
 
 ## Job Configuration
 
@@ -294,11 +319,26 @@ This allows secure parameterization while preventing arbitrary variable injectio
 
 ## Logging
 
+### Service Logs
+
+Service logs record runtime information and support automatic rotation:
+
+```
+<log_dir>/
+├── deployd.log         # Current service log
+├── deployd.log.1       # Historical backup
+├── deployd.log.2       # Historical backup
+└── deployd.log.3       # Historical backup
+```
+
+Service log files have `0600` permissions (owner read/write only) to protect sensitive information.
+
+### Job Logs
+
 Job execution logs are stored per job name:
 
 ```
 <log_dir>/
-├── deployd.log                    # Service log
 └── jobs/
     ├── hello/                     # Job name
     │   └── job_20260320_111405.log
@@ -338,7 +378,9 @@ deployd/
 │   ├── job/
 │   │   ├── manager.go       # Job queue management
 │   │   └── runner.go        # Command execution
-│   ├── logger/logger.go     # Structured logging
+│   ├── logger/
+│   │   ├── logger.go        # Job log recorder
+│   │   └── rotation.go      # Service log rotation
 │   └── store/store.go       # Runtime state storage
 └── examples/
     ├── config.yaml          # Example global config

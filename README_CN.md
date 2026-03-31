@@ -13,6 +13,8 @@
 - 串行或并行步骤执行模式
 - 任务执行超时控制
 - 按任务分文件夹的日志存储
+- 服务日志自动轮转（基于文件大小）
+- 守护进程模式支持
 - RESTful 任务管理 API
 
 ## 安装
@@ -41,7 +43,30 @@ token: your-admin-token-here  # 管理 API 访问令牌
 port: 8080                     # 服务端口
 config_dir: /etc/deployd/jobs  # 任务配置文件目录
 log_dir: /var/log/deployd     # 日志目录
+
+# 日志轮转配置（可选）
+log_max_size: 100             # 服务日志文件最大大小（MB），默认 100
+log_max_backups: 3            # 保留的备份文件数量，默认 3
 ```
+
+### 日志轮转
+
+服务日志文件（`deployd.log`）会在达到指定大小时自动轮转：
+
+```
+<log_dir>/
+├── deployd.log         # 当前日志（正在写入）
+├── deployd.log.1       # 第 1 个备份（最近）
+├── deployd.log.2       # 第 2 个备份
+└── deployd.log.3       # 第 3 个备份（最旧）
+```
+
+轮转规则：
+- 当 `deployd.log` 达到 `log_max_size` 时触发轮转
+- 旧备份文件依次重命名（`.1` → `.2`，`.2` → `.3）
+- 当前日志重命名为 `.1`
+- 创建新的空 `deployd.log` 继续写入
+- 超过 `log_max_backups` 的最旧备份会被删除
 
 ## 任务配置
 
@@ -294,11 +319,26 @@ GET /api/cancel/:id?token=<admin-token>
 
 ## 日志
 
+### 服务日志
+
+服务日志记录运行时信息，支持自动轮转：
+
+```
+<log_dir>/
+├── deployd.log         # 当前服务日志
+├── deployd.log.1       # 历史备份
+├── deployd.log.2       # 历史备份
+└── deployd.log.3       # 历史备份
+```
+
+服务日志文件权限为 `0600`（仅所有者可读写），保护敏感信息。
+
+### 任务日志
+
 任务执行日志按任务名分文件夹存储：
 
 ```
 <log_dir>/
-├── deployd.log                    # 服务日志
 └── jobs/
     ├── hello/                     # 任务名
     │   └── job_20260320_111405.log
@@ -338,7 +378,9 @@ deployd/
 │   ├── job/
 │   │   ├── manager.go       # 任务队列管理
 │   │   └── runner.go        # 命令执行
-│   ├── logger/logger.go     # 结构化日志
+│   ├── logger/
+│   │   ├── logger.go        # 任务日志记录器
+│   │   └── rotation.go      # 服务日志轮转
 │   └── store/store.go       # 运行时状态存储
 └── examples/
     ├── config.yaml          # 示例全局配置
