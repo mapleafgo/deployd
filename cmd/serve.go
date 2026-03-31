@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"os/exec"
 	"os/signal"
 	"syscall"
 	"time"
@@ -24,6 +25,7 @@ import (
 // NewServeCommand creates the serve command
 func NewServeCommand() *cli.Command {
 	var configPath string
+	var daemon bool
 
 	return &cli.Command{
 		Name:  "serve",
@@ -37,15 +39,63 @@ func NewServeCommand() *cli.Command {
 				Sources:     cli.EnvVars("DEPLOYD_CONFIG"),
 				Destination: &configPath,
 			},
+			&cli.BoolFlag{
+				Name:        "daemon",
+				Aliases:     []string{"d"},
+				Usage:       "Run as daemon (background process)",
+				Destination: &daemon,
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			return runServe(configPath)
+			return runServe(configPath, daemon)
 		},
 	}
 }
 
+// daemonize creates a background daemon process by re-executing the program
+func daemonize(configPath string) error {
+	// Get the executable path
+	execPath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+
+	// Build command arguments
+	args := []string{"serve", "-c", configPath}
+
+	// Create the command
+	cmd := exec.Command(execPath, args...)
+	// Set the process to start in a new session (detached from terminal)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setsid: true,
+	}
+
+	// Redirect standard file descriptors to /dev/null
+	null, err := os.OpenFile("/dev/null", os.O_RDWR, 0)
+	if err != nil {
+		return fmt.Errorf("failed to open /dev/null: %w", err)
+	}
+	defer null.Close()
+
+	cmd.Stdin = null
+	cmd.Stdout = null
+	cmd.Stderr = null
+
+	// Start the daemon process
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start daemon: %w", err)
+	}
+
+	fmt.Printf("deployd daemon started with PID: %d\n", cmd.Process.Pid)
+	return nil
+}
+
 // runServe starts the deployd service
-func runServe(configPath string) error {
+func runServe(configPath string, daemon bool) error {
+	// If daemon mode is requested, fork and exit
+	if daemon {
+		return daemonize(configPath)
+	}
 	// Load configuration
 	cfg, err := config.Load(configPath)
 	if err != nil {
