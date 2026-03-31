@@ -49,6 +49,13 @@ func (m *Manager) Trigger(name string, cfg *config.JobConfig, env map[string]str
 
 	// 异步执行（获取锁后串行）
 	go func() {
+		// 添加 panic 恢复，防止 goroutine 泄漏
+		defer func() {
+			if r := recover(); r != nil {
+				m.log.Error("job execution panic", "job_id", jobID, "name", name, "panic", r)
+			}
+		}()
+
 		lock.Lock()
 		defer lock.Unlock()
 		m.execute(name, cfg, env, jobID)
