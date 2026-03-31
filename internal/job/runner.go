@@ -112,6 +112,12 @@ func (r *Runner) runStep(ctx context.Context, step config.StepConfig) bool {
 		default:
 		}
 
+		// 添加 context 超时检查
+		if err := ctx.Err(); err != nil {
+			r.log.StepCompleted(step.Name, err)
+			return true
+		}
+
 		if err := r.execCommand(ctx, cmd, workdir, env); err != nil {
 			r.log.StepCompleted(step.Name, err)
 			return true
@@ -126,6 +132,11 @@ func (r *Runner) runStep(ctx context.Context, step config.StepConfig) bool {
 func (r *Runner) execCommand(ctx context.Context, cmd, workdir string, env map[string]string) error {
 	r.log.Command(cmd)
 
+	// 添加 context 检查
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("command cancelled before execution: %w", err)
+	}
+
 	c := exec.CommandContext(ctx, "/bin/sh", "-c", cmd)
 	c.Dir = workdir
 	c.Env = os.Environ()
@@ -139,7 +150,12 @@ func (r *Runner) execCommand(ctx context.Context, cmd, workdir string, env map[s
 		r.log.CommandOutput(string(output))
 	}
 
-	return err
+	// 包装错误，提供更多上下文
+	if err != nil {
+		return fmt.Errorf("command failed: %s: %w", cmd, err)
+	}
+
+	return nil
 }
 
 // GenerateJobID 生成任务 ID
