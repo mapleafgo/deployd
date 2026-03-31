@@ -22,7 +22,13 @@
 ```bash
 git clone https://github.com/mapleafgo/deployd.git
 cd deployd
-go build -o bin/deployd ./cmd/deployd
+go build -o bin/deployd .
+```
+
+或使用 Task：
+
+```bash
+task build
 ```
 
 ## 配置
@@ -39,7 +45,7 @@ log_dir: /var/log/deployd     # 日志目录
 
 ## 任务配置
 
-任务配置为 YAML 文件，放置在 `config_dir` 目录下。每个任务定义其执行行为：
+任务配置为 YAML 文件，放置在 `config_dir` 目录下，支持 `.yaml` 和 `.yml` 两种扩展名。每个任务定义其执行行为：
 
 ```yaml
 # /etc/deployd/jobs/hello.yaml
@@ -111,10 +117,33 @@ steps:
 ### 启动服务
 
 ```bash
-./bin/deployd
+./bin/deployd serve
 # 或指定配置文件路径
-./bin/deployd -c /path/to/config.yaml
+./bin/deployd serve -c /path/to/config.yaml
 ```
+
+### 验证任务配置
+
+部署前可以验证任务配置文件：
+
+```bash
+# 检查单个任务文件
+./bin/deployd check /etc/deployd/jobs/hello.yaml
+
+# 检查目录下所有任务文件
+./bin/deployd check /etc/deployd/jobs
+
+# 检查当前目录所有任务文件
+./bin/deployd check .
+```
+
+`check` 命令会验证：
+- 必填字段（token、workdir、steps）
+- 队列策略（wait/terminate）
+- 超时时间范围（1秒 - 24小时）
+- 绝对路径要求
+- POSIX 环境变量命名规范
+- 步骤配置有效性
 
 ### 配置为系统服务
 
@@ -289,9 +318,14 @@ hello world
 
 ```
 deployd/
-├── cmd/deployd/main.go      # 入口、CLI、HTTP 服务启动
+├── main.go                  # 应用入口
+├── cmd/
+│   ├── serve.go             # 服务启动命令
+│   └── check.go             # 配置验证命令
 ├── internal/
-│   ├── config/config.go     # 配置加载
+│   ├── config/
+│   │   ├── config.go        # 配置加载
+│   │   └── validator.go     # 配置验证
 │   ├── handler/
 │   │   ├── api.go           # 管理 API 处理器
 │   │   └── hook.go          # Webhook 处理器

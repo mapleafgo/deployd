@@ -22,7 +22,13 @@ A lightweight command execution service triggered by webhooks.
 ```bash
 git clone https://github.com/mapleafgo/deployd.git
 cd deployd
-go build -o bin/deployd ./cmd/deployd
+go build -o bin/deployd .
+```
+
+Or using Task:
+
+```bash
+task build
 ```
 
 ### Configuration
@@ -39,7 +45,7 @@ log_dir: /var/log/deployd     # Directory for job logs
 
 ## Job Configuration
 
-Job configurations are YAML files located in the `config_dir`. Each job defines its execution behavior:
+Job configurations are YAML files located in the `config_dir`. Both `.yaml` and `.yml` extensions are supported. Each job defines its execution behavior:
 
 ```yaml
 # /etc/deployd/jobs/hello.yaml
@@ -111,10 +117,33 @@ steps:
 ### Start the server
 
 ```bash
-./bin/deployd
+./bin/deployd serve
 # Or with custom config path
-./bin/deployd -c /path/to/config.yaml
+./bin/deployd serve -c /path/to/config.yaml
 ```
+
+### Validate job configurations
+
+Before deploying, you can validate your job configuration files:
+
+```bash
+# Check a single job file
+./bin/deployd check /etc/deployd/jobs/hello.yaml
+
+# Check all job files in a directory
+./bin/deployd check /etc/deployd/jobs
+
+# Check all job files in current directory
+./bin/deployd check .
+```
+
+The `check` command validates:
+- Required fields (token, workdir, steps)
+- Queue policy (wait/terminate)
+- Timeout range (1s - 24h)
+- Absolute path requirements
+- POSIX environment variable names
+- Step configuration validity
 
 ### Run as systemd service
 
@@ -289,9 +318,14 @@ Thu Mar 20 11:14:05 CST 2026
 
 ```
 deployd/
-├── cmd/deployd/main.go      # Entry point, CLI, HTTP server setup
+├── main.go                  # Application entry point
+├── cmd/
+│   ├── serve.go             # Server command
+│   └── check.go             # Configuration validation command
 ├── internal/
-│   ├── config/config.go     # Configuration loading
+│   ├── config/
+│   │   ├── config.go        # Configuration loading
+│   │   └── validator.go     # Configuration validation
 │   ├── handler/
 │   │   ├── api.go           # Admin API handlers
 │   │   └── hook.go          # Webhook handlers
