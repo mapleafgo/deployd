@@ -52,6 +52,7 @@ export function submitErrors(error: unknown, submittedKeys: string[], currentKey
     "workdirTooLong",
     "noNul",
     "envName",
+    "shellEnvReserved",
     "nonBlank",
     "taskName",
     "descriptionLength",

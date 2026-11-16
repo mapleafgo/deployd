@@ -96,12 +96,13 @@ it("旧运行请求完成不能解除仍在提交的编辑面板保护", async (
     .getByRole("textbox", { name: translations["zh-CN"].name, exact: true })
     .first()
     .fill("new-task");
+  await page.getByRole("button", { name: /步骤设置/ }).click();
   await page
     .getByRole("textbox", { name: translations["zh-CN"].stepNameLabel, exact: true })
     .last()
     .fill("main");
-  await page.getByRole("textbox", { name: "Shell 脚本", exact: true }).fill("echo done");
-  await page.getByRole("button", { name: "保存", exact: true }).click();
+  await page.getByRole("textbox", { name: "Bash 脚本", exact: true }).fill("echo done");
+  await page.getByRole("button", { name: "创建任务", exact: true }).click();
   await vi.waitFor(() => expect(createTask).toHaveBeenCalledOnce());
   run.reject({ status: 500, requestId: "old-trigger" });
   await expect.element(page.getByText("old-trigger", { exact: false })).toBeInTheDocument();

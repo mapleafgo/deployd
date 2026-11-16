@@ -23,13 +23,14 @@ test("新增任务、真实运行实时日志、取消并删除任务", async ({
   const name = `e2e-${Date.now()}`;
   await page.getByRole("button", { name: "新增", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "新增任务", exact: true });
-  await editor.getByLabel("名称", { exact: true }).fill(name);
-  await editor.getByLabel("工作目录", { exact: true }).first().fill("/tmp");
-  await editor.getByLabel("步骤名称", { exact: true }).fill("输出");
+  await editor.getByRole("textbox", { name: "名称", exact: true }).fill(name);
+  await editor.getByRole("textbox", { name: "工作目录", exact: true }).first().fill("/tmp");
+  await editor.getByRole("button", { name: /步骤设置/ }).click();
+  await editor.getByRole("textbox", { name: "步骤名称", exact: true }).fill("输出");
   await editor
-    .getByLabel("Shell 脚本", { exact: true })
+    .getByRole("textbox", { name: "Bash 脚本", exact: true })
     .fill("printf '实时首段中文\\n'\nsleep 20\nprintf '结束尾段\\n'");
-  await editor.getByRole("button", { name: "保存", exact: true }).click();
+  await editor.getByRole("button", { name: /^(保存|创建任务)$/, exact: true }).click();
   await expect(editor).not.toBeVisible();
   const row = page.getByRole("row").filter({ hasText: name });
   await expect(row).toBeVisible();
@@ -59,13 +60,20 @@ test("窄屏任务编辑保持字段和提交操作可达", async ({ page, baseU
   await page.goto("/");
   await page.getByRole("button", { name: "新增", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "新增任务", exact: true });
-  await editor.getByLabel("名称", { exact: true }).fill("mobile-draft");
-  await editor.getByLabel("Shell 脚本", { exact: true }).fill("printf mobile");
-  await editor.getByRole("button", { name: "保存", exact: true }).scrollIntoViewIfNeeded();
-  await expect(editor.getByRole("button", { name: "保存", exact: true })).toBeVisible();
+  await editor.getByRole("textbox", { name: "名称", exact: true }).fill("mobile-draft");
+  await editor.getByRole("textbox", { name: "Bash 脚本", exact: true }).fill("printf mobile");
+  await editor
+    .getByRole("button", { name: /^(保存|创建任务)$/, exact: true })
+    .scrollIntoViewIfNeeded();
+  await expect(
+    editor.getByRole("button", { name: /^(保存|创建任务)$/, exact: true }),
+  ).toBeVisible();
   await page.screenshot({ path: "test-results/rebuild-mobile.png", fullPage: true });
-  await expect(editor.getByLabel("名称", { exact: true })).toHaveValue("mobile-draft");
+  await expect(editor.getByRole("textbox", { name: "名称", exact: true })).toHaveValue(
+    "mobile-draft",
+  );
   await editor.getByRole("button", { name: "取消", exact: true }).click();
+  await page.getByRole("button", { name: "放弃修改", exact: true }).click();
   await expect(editor).not.toBeVisible();
 });
 
@@ -76,12 +84,13 @@ test("取消失败保留反馈，真实日志仍继续输出", async ({ page, ba
   const name = `cancel-error-${Date.now()}`;
   await page.getByRole("button", { name: "新增", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "新增任务", exact: true });
-  await editor.getByLabel("名称", { exact: true }).fill(name);
-  await editor.getByLabel("步骤名称", { exact: true }).fill("持续输出");
+  await editor.getByRole("textbox", { name: "名称", exact: true }).fill(name);
+  await editor.getByRole("button", { name: /步骤设置/ }).click();
+  await editor.getByRole("textbox", { name: "步骤名称", exact: true }).fill("持续输出");
   await editor
-    .getByLabel("Shell 脚本", { exact: true })
+    .getByRole("textbox", { name: "Bash 脚本", exact: true })
     .fill("printf '取消前输出\\n'\nsleep 2\nprintf '取消失败后仍输出\\n'\nsleep 15");
-  await editor.getByRole("button", { name: "保存", exact: true }).click();
+  await editor.getByRole("button", { name: /^(保存|创建任务)$/, exact: true }).click();
   await expect(editor).not.toBeVisible();
   await page
     .getByRole("row")

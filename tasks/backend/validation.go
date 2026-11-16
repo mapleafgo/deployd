@@ -28,6 +28,7 @@ var fieldMessages = map[string][2]string{
 	"absoluteWorkdir":   {"请输入绝对工作目录路径", "Enter an absolute working directory path"},
 	"workdirTooLong":    {"工作目录路径不得超过4096字节", "Keep the working directory path within 4096 bytes"},
 	"noNul":             {"请移除空字符（NUL）", "Remove null (NUL) characters"},
+	"shellEnvReserved":  {"此变量由Bash执行环境保留，请使用其他名称", "This variable is reserved by the Bash execution environment; use another name"},
 	"envName":           {"环境变量名须以字母或下划线开头，且仅含字母、数字或下划线", "Use an environment variable name starting with a letter or underscore and containing only letters, digits or underscores"},
 	"nonBlank":          {"请输入非空白内容", "Enter a value that is not blank"},
 	"taskName":          {"名称须为1–64位字母、数字、下划线或连字符，且以字母或数字开头", "Use 1–64 letters, digits, underscores or hyphens, starting with a letter or digit"},
@@ -75,6 +76,13 @@ func taskViolations(in TaskInput, structure bool) []*fieldViolation {
 		sort.Strings(keys)
 		for _, key := range keys {
 			valid := envNamePattern.MatchString(key)
+			if reservedShellEnv(key) {
+				field := location
+				if valid {
+					field += "." + key
+				}
+				add(field, "shellEnvReserved")
+			}
 			if !valid {
 				add(location, "envName")
 			}
@@ -136,6 +144,13 @@ func validateOverrides(overrides map[string]string, location string) error {
 	sort.Strings(keys)
 	var errs []error
 	for _, key := range keys {
+		if reservedShellEnv(key) {
+			field := location
+			if envNamePattern.MatchString(key) {
+				field += "." + key
+			}
+			errs = append(errs, fieldError(field, "shellEnvReserved"))
+		}
 		if strings.ContainsRune(overrides[key], 0) {
 			field := location
 			if envNamePattern.MatchString(key) {
@@ -155,6 +170,20 @@ func validateTask(in TaskInput) error {
 	}
 	return errors.Join(errs...)
 }
+
+// 旧任务允许保留原有的合法 Bash 保留变量声明；执行器仍会过滤其值。
+// 其余格式、结构与内容校验不变，新增和更新仍使用 validateTask。
+func validatePersistedTask(in TaskInput) error {
+	fields := taskViolations(in, true)
+	errs := make([]error, 0, len(fields))
+	for _, field := range fields {
+		if field.Code != "shellEnvReserved" {
+			errs = append(errs, field)
+		}
+	}
+	return errors.Join(errs...)
+}
+
 func validationDetails(ctx context.Context, err error) []taskErrorDetail {
 	if err == nil {
 		return nil

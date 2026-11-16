@@ -44,7 +44,7 @@ modules:
         red-berry-kit/auth: ^0.3.0
         red-berry-kit/boot: ^0.2.1
         red-berry-kit/ui: ^0.1.0
-      digest: a91b48ff7294d35de78dd15c296344580e8d1a55ff8f684ade72790cd6914c76
+      digest: f0fa56f822b36d3dcea5ff3da32bc7f86d29184f08e6684d0f17db95ee6ab6b2
     - id: red-berry-kit/auth
       version: 0.3.0
       commit: d8d6bc2dca99955ad37b86c78cd6b40c24bb325d
@@ -74,7 +74,7 @@ modules:
     - id: red-berry-kit/ui
       version: 0.1.0
       dir: ../red-berry-kit/modules/ui
-      digest: 9b68b0bd57cffd010984f51f085ab0fc456af49a0af8ced85db4d48ffa8571ae
+      digest: 45873072d28ffff39d805c19cb9b6fdc637c5534c20dc259a170f81c01ce2e51
     - id: red-berry-kit/web
       version: 0.1.0
       commit: d8d6bc2dca99955ad37b86c78cd6b40c24bb325d

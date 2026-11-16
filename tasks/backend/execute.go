@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"red-berry-kit/boot/backend/diagnostics"
 	"sort"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -149,7 +150,9 @@ func runStep(ctx context.Context, task Task, step Step, output io.Writer, id str
 	}
 	keys := make([]string, 0, len(env))
 	for key := range env {
-		keys = append(keys, key)
+		if !reservedShellEnv(key) {
+			keys = append(keys, key)
+		}
 	}
 	sort.Strings(keys)
 	values := make([]string, 0, len(keys))
@@ -160,7 +163,7 @@ func runStep(ctx context.Context, task Task, step Step, output io.Writer, id str
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		command := exec.Command("/bin/sh", "-c", script)
+		command := exec.Command(bashPath, "--noprofile", "--norc", "-c", script)
 		command.Dir = dir
 		command.Env = values
 		command.Stdout = output
@@ -226,4 +229,32 @@ func (s *taskService) readChunk(id string, offset int64) ([]byte, error) {
 		err = nil
 	}
 	return data[:n], err
+}
+
+const bashPath = "/bin/bash"
+
+// Bash 启动行为只由执行器及脚本文本确定，排除宿主环境隐式接线。
+func reservedShellEnv(key string) bool {
+	switch key {
+	case "BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS", "POSIXLY_CORRECT":
+		return true
+	}
+	return strings.HasPrefix(key, "BASH_FUNC_") && strings.HasSuffix(key, "%%")
+}
+
+func checkBash(ctx context.Context, path string) error {
+	checkCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+	command := exec.CommandContext(checkCtx, path, "--noprofile", "--norc", "-c", `[[ -n ${BASH_VERSION-} ]] && printf 'deployd-bash-check\n%s\n' "$BASH_VERSION"`)
+	command.Env = []string{"PATH=/usr/bin:/bin"}
+	output, err := command.Output()
+	if err != nil {
+		return fmt.Errorf("任务执行需要可运行的 Bash，请安装 %s: %w", path, err)
+	}
+	// 同时校验实际执行结果，不能把忽略参数并返回成功的程序误判为 Bash。
+	lines := strings.Split(string(output), "\n")
+	if len(lines) != 3 || lines[0] != "deployd-bash-check" || lines[1] == "" || lines[2] != "" {
+		return fmt.Errorf("任务执行需要可运行的 Bash，请安装 %s: Bash 身份检查未通过", path)
+	}
+	return nil
 }

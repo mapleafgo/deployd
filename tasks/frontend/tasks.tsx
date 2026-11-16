@@ -1,7 +1,7 @@
 import { safeFailure, failureText, type SafeFailure } from "./errors";
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { useNavigate } from "@tanstack/react-router";
+import { useBlocker, useNavigate } from "@tanstack/react-router";
 import {
   Action,
   CopyAction,
@@ -10,6 +10,7 @@ import {
   Notice,
   RecordAction,
   RecordActions,
+  Row,
   TextField,
   Vertical,
 } from "@red-berry-kit/ui";
@@ -32,7 +33,24 @@ export function TasksPage() {
   const [deleting, setDeleting] = useState<Task>();
   const editor = useExitPresentation(editing);
   const deletion = useExitPresentation(deleting);
+  const [editorDirty, setEditorDirty] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
+  const [resumeFocus, setResumeFocus] = useState(0);
   const [editorBusy, setEditorBusy] = useState(false);
+  const blocker = useBlocker({
+    shouldBlockFn: () => editing !== undefined && (editorDirty || editorBusy),
+    withResolver: true,
+    enableBeforeUnload: editing !== undefined && (editorDirty || editorBusy),
+  });
+  function closeEditor() {
+    if (editorBusy) return;
+    if (editorDirty) setDiscarding(true);
+    else setEditing(undefined);
+  }
+  function continueEditing() {
+    setDiscarding(false);
+    if (blocker.status === "blocked") blocker.reset();
+  }
   const [triggerBusy, setTriggerBusy] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [triggerFailure, setTriggerFailure] = useState<SafeFailure | null>(null);
@@ -48,6 +66,7 @@ export function TasksPage() {
   const [acceptedRun, setAcceptedRun] = useState<{ name: string; id: string }>();
   function openEditor(task: Task | null) {
     interaction.current++;
+    setEditorDirty(false);
     setEditing(task);
   }
   const query = useQuery({
@@ -200,7 +219,7 @@ export function TasksPage() {
             opened={editing !== undefined}
             title={t(editor.value ? "edit" : "createTitle")}
             busy={editorBusy}
-            onClose={() => setEditing(undefined)}
+            onClose={closeEditor}
             onClosed={editor.onClosed}
           >
             {editor.value !== undefined && (
@@ -208,13 +227,49 @@ export function TasksPage() {
                 key={editor.value?.name ?? "new"}
                 task={editor.value}
                 onBusy={setEditorBusy}
-                onCancel={() => setEditing(undefined)}
+                onCancel={closeEditor}
+                onDirty={setEditorDirty}
+                resumeFocus={resumeFocus}
                 onSaved={() => {
+                  setDiscarding(false);
+                  if (blocker.status === "blocked") blocker.reset();
+                  setEditorDirty(false);
                   setEditing(undefined);
                   void refresh();
                 }}
               />
             )}
+          </EditorPanel>
+          <EditorPanel
+            opened={discarding || blocker.status === "blocked"}
+            title={t("discardTitle")}
+            busy={editorBusy}
+            onClose={continueEditing}
+            onClosed={() => {
+              if (editing !== undefined) setResumeFocus((value) => value + 1);
+            }}
+          >
+            <Vertical>
+              <Notice>{t("discardHint")}</Notice>
+              <Row>
+                <Action icon="close" intent="quiet" onClick={continueEditing}>
+                  {t("continueEditing")}
+                </Action>
+                <Action
+                  icon="delete"
+                  intent="danger"
+                  disabled={editorBusy}
+                  onClick={() => {
+                    setDiscarding(false);
+                    setEditorDirty(false);
+                    setEditing(undefined);
+                    if (blocker.status === "blocked") blocker.proceed();
+                  }}
+                >
+                  {t("discardChanges")}
+                </Action>
+              </Row>
+            </Vertical>
           </EditorPanel>
           <EditorPanel
             opened={!!deleting}

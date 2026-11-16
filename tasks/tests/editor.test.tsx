@@ -155,6 +155,7 @@ it("保存失败保留字段，重试不改原独立commands，语言变化不�
   expect(updateTask.mock.calls[1]?.[1].steps[0]?.commands).toEqual(["cd /tmp", "echo done"]);
   expect(updateTask.mock.calls[1]?.[1].env).toEqual({ A: "a=b", EMPTY: "" });
   expect(updateTask.mock.calls[1]?.[1].timeout).toBe(".5h");
+  await page.getByRole("button", { name: /Execution settings/ }).click();
   const timeout = page.getByRole("textbox", { name: "Timeout", exact: true });
   for (const invalid of ["999999999ns", "24h1ns", "-1s", "1d"]) {
     await timeout.fill(invalid);

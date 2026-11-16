@@ -172,6 +172,9 @@ func readJSON(path string, value any) error {
 	return json.Unmarshal(data, value)
 }
 func (s *taskService) start(ctx context.Context) (result error) {
+	if err := checkBash(ctx, bashPath); err != nil {
+		return err
+	}
 	finish := diagnostics.Start(ctx, "tasks", "storage.start")
 	defer func() { finish(result) }()
 	s.mu.Lock()
@@ -210,7 +213,7 @@ func (s *taskService) start(ctx context.Context) (result error) {
 		if err := readJSON(filepath.Join(s.dir, "tasks", entry.Name()), &task); err != nil {
 			return err
 		}
-		if !taskNamePattern.MatchString(task.Name) || entry.Name() != task.Name+".json" || validateTask(task.TaskInput) != nil || task.Token == "" {
+		if !taskNamePattern.MatchString(task.Name) || entry.Name() != task.Name+".json" || validatePersistedTask(task.TaskInput) != nil || task.Token == "" {
 			return errors.New("persisted task has invalid identity, configuration or token")
 		}
 		loaded[task.Name] = task

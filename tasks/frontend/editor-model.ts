@@ -2,7 +2,13 @@ import { z } from "zod";
 export const variablesSchema = z
   .array(
     z.object({
-      key: z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "variableInvalid"),
+      key: z
+        .string()
+        .regex(/^[A-Za-z_][A-Za-z0-9_]*$/, "variableInvalid")
+        .refine(
+          (name) => !["BASH_ENV", "ENV", "SHELLOPTS", "BASHOPTS", "POSIXLY_CORRECT"].includes(name),
+          "validation.shellEnvReserved",
+        ),
       value: z.string(),
     }),
   )

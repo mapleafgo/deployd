@@ -14,11 +14,12 @@ function gate() {
 async function createTask(page: Page, name: string, script = "printf 'verified\\n'") {
   await page.getByRole("button", { name: "新增", exact: true }).click();
   const editor = page.getByRole("dialog", { name: "新增任务", exact: true });
-  await editor.getByLabel("名称", { exact: true }).fill(name);
-  await editor.getByLabel("工作目录", { exact: true }).first().fill("/tmp");
-  await editor.getByLabel("步骤名称", { exact: true }).fill("验证");
-  await editor.getByLabel("Shell 脚本", { exact: true }).fill(script);
-  await editor.getByRole("button", { name: "保存", exact: true }).click();
+  await editor.getByRole("textbox", { name: "名称", exact: true }).fill(name);
+  await editor.getByRole("textbox", { name: "工作目录", exact: true }).first().fill("/tmp");
+  await editor.getByRole("button", { name: /步骤设置/ }).click();
+  await editor.getByRole("textbox", { name: "步骤名称", exact: true }).fill("验证");
+  await editor.getByRole("textbox", { name: "Bash 脚本", exact: true }).fill(script);
+  await editor.getByRole("button", { name: /^(保存|创建任务)$/, exact: true }).click();
   await expect(editor).not.toBeVisible();
   await expect(page.getByRole("row").filter({ hasText: name })).toBeVisible();
 }
@@ -71,10 +72,11 @@ test("真实触发结果迟到不抢走后发提交，提交期间关闭保护�
     await triggerReached.promise;
     await page.getByRole("button", { name: "新增", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "新增任务", exact: true });
-    await editor.getByLabel("名称", { exact: true }).fill(created);
-    await editor.getByLabel("步骤名称", { exact: true }).fill("后发提交");
-    await editor.getByLabel("Shell 脚本", { exact: true }).fill("printf saved");
-    await editor.getByRole("button", { name: "保存", exact: true }).click();
+    await editor.getByRole("textbox", { name: "名称", exact: true }).fill(created);
+    await editor.getByRole("button", { name: /步骤设置/ }).click();
+    await editor.getByRole("textbox", { name: "步骤名称", exact: true }).fill("后发提交");
+    await editor.getByRole("textbox", { name: "Bash 脚本", exact: true }).fill("printf saved");
+    await editor.getByRole("button", { name: /^(保存|创建任务)$/, exact: true }).click();
     await saveReached.promise;
     releaseTrigger.release();
     await expect(
@@ -84,7 +86,9 @@ test("真实触发结果迟到不抢走后发提交，提交期间关闭保护�
         includeHidden: true,
       }),
     ).toHaveCount(1);
-    await expect(editor.getByRole("button", { name: "保存", exact: true })).toBeDisabled();
+    await expect(
+      editor.getByRole("button", { name: /^(保存|创建任务)$/, exact: true }),
+    ).toBeDisabled();
     await page.keyboard.press("Escape");
     await expect(editor).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/");

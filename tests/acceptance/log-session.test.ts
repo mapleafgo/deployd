@@ -13,12 +13,13 @@ test(
     const name = `artifact-${Date.now()}`;
     await page.getByRole("button", { name: "新增", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "新增任务", exact: true });
-    await editor.getByLabel("名称", { exact: true }).fill(name);
-    await editor.getByLabel("步骤名称", { exact: true }).fill("长连接");
+    await editor.getByRole("textbox", { name: "名称", exact: true }).fill(name);
+    await editor.getByRole("button", { name: /步骤设置/ }).click();
+    await editor.getByRole("textbox", { name: "步骤名称", exact: true }).fill("长连接");
     await editor
-      .getByLabel("Shell 脚本", { exact: true })
+      .getByRole("textbox", { name: "Bash 脚本", exact: true })
       .fill(`printf '流首段中文\\n'\nsleep ${expires ? 34 : 64}\nprintf '续传尾段中文\\n'`);
-    await editor.getByRole("button", { name: "保存", exact: true }).click();
+    await editor.getByRole("button", { name: /^(保存|创建任务)$/, exact: true }).click();
     await expect(editor).not.toBeVisible();
     const connections: { at: number; offset: number }[] = [];
     const credentials = new Set<string>();

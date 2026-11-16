@@ -18,14 +18,15 @@ test("真实API接受的Go时长原值可保留并编辑其他字段", async ({ 
     });
     await page.getByRole("button", { name: "新增", exact: true }).click();
     const create = page.getByRole("dialog", { name: "新增任务", exact: true });
-    await create.getByLabel("名称", { exact: true }).fill(name);
-    await create.getByLabel("步骤名称", { exact: true }).fill("保留时长");
-    await create.getByLabel("Shell 脚本", { exact: true }).fill("printf untouched");
+    await create.getByRole("textbox", { name: "名称", exact: true }).fill(name);
+    await create.getByRole("button", { name: /步骤设置/ }).click();
+    await create.getByRole("textbox", { name: "步骤名称", exact: true }).fill("保留时长");
+    await create.getByRole("textbox", { name: "Bash 脚本", exact: true }).fill("printf untouched");
     const created = page.waitForResponse(
       (response) =>
         response.request().method() === "POST" && new URL(response.url()).pathname === "/api/tasks",
     );
-    await create.getByRole("button", { name: "保存", exact: true }).click();
+    await create.getByRole("button", { name: /^(保存|创建任务)$/, exact: true }).click();
     const response = await created;
     expect(response.status()).toBe(201);
     const body: unknown = await response.json();
@@ -38,14 +39,18 @@ test("真实API接受的Go时长原值可保留并编辑其他字段", async ({ 
     const row = page.getByRole("row").filter({ hasText: name });
     await row.getByRole("button", { name: "编辑任务", exact: true }).click();
     const editor = page.getByRole("dialog", { name: "编辑任务", exact: true });
-    await expect(editor.getByLabel("超时", { exact: true })).toHaveValue(timeout);
-    await editor.getByLabel("说明", { exact: true }).fill("只改说明，保留API合法原值");
+    await editor.getByRole("button", { name: /执行设置/ }).click();
+    await expect(editor.getByRole("textbox", { name: "超时", exact: true })).toHaveValue(timeout);
+    await editor.getByRole("button", { name: "说明", exact: true }).click();
+    await editor
+      .getByRole("textbox", { name: "说明", exact: true })
+      .fill("只改说明，保留API合法原值");
     const updated = page.waitForResponse(
       (result) =>
         result.request().method() === "PUT" &&
         new URL(result.url()).pathname === `/api/tasks/${name}`,
     );
-    await editor.getByRole("button", { name: "保存", exact: true }).click();
+    await editor.getByRole("button", { name: /^(保存|创建任务)$/, exact: true }).click();
     const saved = await updated;
     expect(saved.ok()).toBe(true);
     const value: unknown = await saved.json();
