@@ -1,25 +1,23 @@
-# Binaries
-bin/
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+.redberry/
+node_modules/
+dist/
+data/
+*.sqlite
+*.sqlite-*
+test-results/
+playwright-report/
 
-# Test binaries
-*.test
-*.out
+.redberry-stage-*/
+.redberry-backup/
+.redberry-operation.lock
+.redberry-create-*/
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
+config/app.local.toml
+config/*.local.toml
 
-# Logs
-logs/
-*.log
+# 测试与构建产物
+.vitest/
+*.tsbuildinfo
 
-# OS
-.DS_Store
-Thumbs.db
+# 指向仓库外同级目录的工具符号链接，克隆后失效
+.agents/skills/

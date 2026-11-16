@@ -1,0 +1,64 @@
+name: 业务项目持续集成
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 发布前必须配置仓库 Actions Variables：
+# REDBERRY_CLI_REPOSITORY      提供 redberry CLI 源码的仓库 owner/repo。
+# REDBERRY_CLI_REF             CLI 源码的标签或分支。
+# 私有仓库还需项目维护者配置读取凭证。
+env:
+  REDBERRY_CLI_REPOSITORY: ${{ vars.REDBERRY_CLI_REPOSITORY }}
+  REDBERRY_CLI_REF: ${{ vars.REDBERRY_CLI_REF }}
+
+jobs:
+  application:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: 核对 CLI 源码来源
+        run: |
+          if [ -z "$REDBERRY_CLI_REPOSITORY" ] || [ -z "$REDBERRY_CLI_REF" ]; then
+            echo '::error::发布前请配置 REDBERRY_CLI_REPOSITORY 与 REDBERRY_CLI_REF。'
+            exit 1
+          fi
+      - uses: actions/checkout@v7
+        with:
+          repository: ${{ env.REDBERRY_CLI_REPOSITORY }}
+          ref: ${{ env.REDBERRY_CLI_REF }}
+          path: .redberry-cli
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: |
+            go.sum
+            .redberry-cli/go.sum
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '26.12.1'
+      - name: 从已检出的源码安装 CLI 和固定工具
+        run: |
+          mkdir -p "$RUNNER_TEMP/redberry-tools"
+          GOWORK=off go -C .redberry-cli build -trimpath -o "$RUNNER_TEMP/redberry-tools/redberry" ./cmd/redberry
+          echo "$RUNNER_TEMP/redberry-tools" >> "$GITHUB_PATH"
+          npm install --global corepack@0.36.0
+          corepack enable
+          corepack prepare pnpm@12.15.0 --activate
+      - name: 按锁恢复模块与生成产物
+        run: redberry install --locked
+      - name: 安装浏览器和系统依赖
+        run: pnpm exec playwright install --with-deps chromium
+      - name: 只读检查
+        run: pnpm check
+      - name: Node、Browser、E2E 与视觉测试
+        run: pnpm test
+      - name: 单二进制构建
+        run: pnpm build
+      - name: 分离构建
+        run: pnpm build:split

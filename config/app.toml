@@ -1,0 +1,16 @@
+[red-berry-kit.boot]
+address = "127.0.0.1:8088"
+
+[red-berry-kit.auth]
+issuer = "deployd"
+# Webhook 使用任务专属令牌核验，不接受管理员会话作为触发凭据。
+exclude_apis = ["/api/hooks/**", "/hook/**"]
+external_origin = "http://127.0.0.1:5173"
+allow_http = true
+
+[red-berry-kit.cache]
+driver = "badger"
+path = "data/cache"
+
+[mapleafgo.tasks]
+data_dir = "data/deployd"

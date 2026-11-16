@@ -1,0 +1,21 @@
+{
+  "name": "@mapleafgo/app",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./index.ts"
+  },
+  "dependencies": {
+    "@mantine/hooks": "catalog:",
+    "@red-berry-kit/ui": "workspace:*",
+    "@red-berry-kit/web": "workspace:*",
+    "@tanstack/react-form": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "i18next": "26.5.11",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-i18next": "17.1.9",
+    "zod": "catalog:"
+  }
+}

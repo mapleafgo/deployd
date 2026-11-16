@@ -1,0 +1,17 @@
+go 1.27.3
+
+use (
+	.
+	./../red-berry-kit/modules/boot
+	./.redberry/modules/red-berry-kit/auth
+	./.redberry/modules/red-berry-kit/cache
+	./tasks
+)
+
+replace github.com/mapleafgo/deployd/tasks v0.1.0 => ./tasks
+
+replace red-berry-kit/auth v0.3.0 => ./.redberry/modules/red-berry-kit/auth
+
+replace red-berry-kit/boot v0.2.1 => ./../red-berry-kit/modules/boot
+
+replace red-berry-kit/cache v0.1.0 => ./.redberry/modules/red-berry-kit/cache

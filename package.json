@@ -1,0 +1,51 @@
+{
+  "name": "deployd-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "redberry app dev --env dev",
+    "gen": "redberry gen",
+    "check": "redberry check",
+    "test": "redberry app test",
+    "test:visual": "playwright test --grep @visual",
+    "build": "redberry app build --mode single",
+    "build:split": "redberry app build --mode split",
+    "gen:api": "orval --config frontend/orval.config.ts",
+    "check:web": "node scripts/frontend/check.mjs",
+    "test:web": "node scripts/frontend/test.mjs"
+  },
+  "dependencies": {
+    "@red-berry-kit/ui": "workspace:*",
+    "@red-berry-kit/web": "workspace:*",
+    "@tanstack/react-query": "catalog:",
+    "i18next": "26.5.11",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-i18next": "17.1.9"
+  },
+  "devDependencies": {
+    "@mantine/core": "catalog:",
+    "@mantine/dates": "catalog:",
+    "@mantine/hooks": "catalog:",
+    "@playwright/test": "catalog:",
+    "@tanstack/react-form": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "orval": "catalog:",
+    "oxfmt": "catalog:",
+    "oxlint": "catalog:",
+    "oxlint-tsgolint": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "vitest-browser-react": "catalog:",
+    "zod": "catalog:"
+  },
+  "engines": {
+    "node": "26.12.1"
+  },
+  "packageManager": "pnpm@12.15.0"
+}

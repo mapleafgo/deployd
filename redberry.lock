@@ -1,0 +1,94 @@
+format: 2
+root:
+    id: github.com/mapleafgo/deployd
+    version: 0.1.0
+    deps:
+        github.com/mapleafgo/deployd/tasks: ^0.1.0
+        red-berry-kit/auth: ^0.3.0
+        red-berry-kit/boot: ^0.2.1
+        red-berry-kit/ui: ^0.1.0
+        red-berry-kit/web: ^0.1.0
+    sources:
+        red-berry-kit/boot: ../red-berry-kit/modules/boot
+        red-berry-kit/ui: ../red-berry-kit/modules/ui
+    registries:
+        - ssh://git@gitea.tides.top:220/red-berry-kit/registry.git
+    web:
+        apps:
+            admin:
+                directory: frontend
+                output: dist
+                build:
+                    - pnpm
+                    - exec
+                    - vite
+                    - build
+                path: /
+                dev:
+                    target: http://127.0.0.1:5173
+                    test_target: http://127.0.0.1:5273
+                    command:
+                        - pnpm
+                        - exec
+                        - vite
+                        - --host
+                        - 127.0.0.1
+                        - --port
+                        - '{port}'
+                        - --strictPort
+modules:
+    - id: github.com/mapleafgo/deployd/tasks
+      version: 0.1.0
+      dir: tasks
+      deps:
+        red-berry-kit/auth: ^0.3.0
+        red-berry-kit/boot: ^0.2.1
+        red-berry-kit/ui: ^0.1.0
+      digest: a91b48ff7294d35de78dd15c296344580e8d1a55ff8f684ade72790cd6914c76
+    - id: red-berry-kit/auth
+      version: 0.3.0
+      commit: d8d6bc2dca99955ad37b86c78cd6b40c24bb325d
+      dir: .redberry/modules/red-berry-kit/auth
+      deps:
+        red-berry-kit/boot: ^0.2.0
+        red-berry-kit/cache: ^0.1.0
+        red-berry-kit/ui: ^0.1.0
+      digest: fec1d8af35e9ab834c25b6b6494be46de603fa400e19238cba594919e20afa7c
+      repository: ssh://git@gitea.tides.top:220/red-berry-kit/modules.git
+      subdir: auth
+      registry: ssh://git@gitea.tides.top:220/red-berry-kit/registry.git
+    - id: red-berry-kit/boot
+      version: 0.2.1
+      dir: ../red-berry-kit/modules/boot
+      digest: 662bb46e2de71bf238816d01976a1a349878d8bd75907fa9e5c43b58275f95d3
+    - id: red-berry-kit/cache
+      version: 0.1.0
+      commit: d8d6bc2dca99955ad37b86c78cd6b40c24bb325d
+      dir: .redberry/modules/red-berry-kit/cache
+      deps:
+        red-berry-kit/boot: ^0.2.0
+      digest: a0b8e17681bdcf14f5d1638d519b6445dadd8e1c9d046965e584ef6cfb569fd5
+      repository: ssh://git@gitea.tides.top:220/red-berry-kit/modules.git
+      subdir: cache
+      registry: ssh://git@gitea.tides.top:220/red-berry-kit/registry.git
+    - id: red-berry-kit/ui
+      version: 0.1.0
+      dir: ../red-berry-kit/modules/ui
+      digest: 9b68b0bd57cffd010984f51f085ab0fc456af49a0af8ced85db4d48ffa8571ae
+    - id: red-berry-kit/web
+      version: 0.1.0
+      commit: d8d6bc2dca99955ad37b86c78cd6b40c24bb325d
+      dir: .redberry/modules/red-berry-kit/web
+      deps:
+        red-berry-kit/ui: ^0.1.0
+      digest: 1227acd8c64c33968ba678b92953b22dc57029b70894d2c35321e4808a030782
+      repository: ssh://git@gitea.tides.top:220/red-berry-kit/modules.git
+      subdir: web
+      registry: ssh://git@gitea.tides.top:220/red-berry-kit/registry.git
+targets:
+    github.com/mapleafgo/deployd/tasks: github.com/mapleafgo/deployd/tasks
+    red-berry-kit/auth: red-berry-kit/auth
+    red-berry-kit/boot: red-berry-kit/boot
+    red-berry-kit/cache: red-berry-kit/cache
+    red-berry-kit/ui: red-berry-kit/ui
+    red-berry-kit/web: red-berry-kit/web

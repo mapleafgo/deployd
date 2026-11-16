@@ -1,0 +1,36 @@
+id: github.com/mapleafgo/deployd
+version: 0.1.0
+deps:
+    github.com/mapleafgo/deployd/tasks: ^0.1.0
+    red-berry-kit/auth: ^0.3.0
+    red-berry-kit/boot: ^0.2.1
+    red-berry-kit/ui: ^0.1.0
+    red-berry-kit/web: ^0.1.0
+sources:
+    red-berry-kit/boot: ../red-berry-kit/modules/boot
+    red-berry-kit/ui: ../red-berry-kit/modules/ui
+registries:
+    - ssh://git@gitea.tides.top:220/red-berry-kit/registry.git
+web:
+    apps:
+        admin:
+            directory: frontend
+            output: dist
+            build:
+                - pnpm
+                - exec
+                - vite
+                - build
+            path: /
+            dev:
+                target: http://127.0.0.1:5173
+                test_target: http://127.0.0.1:5273
+                command:
+                    - pnpm
+                    - exec
+                    - vite
+                    - --host
+                    - 127.0.0.1
+                    - --port
+                    - '{port}'
+                    - --strictPort

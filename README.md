@@ -1,392 +1,117 @@
 # deployd
 
-[中文](README_CN.md)
+基于红莓框架的轻量任务执行服务。管理员配置 Shell 任务，手动或通过 Webhook 触发，在运行历史中查看实时日志。
 
-A lightweight command execution service triggered by webhooks.
+应用负责品牌、配置和通用装配；自有 [tasks 模块](tasks/README.md) 负责任务领域。通用控件与工作台来自正式 ui、web 模块，认证复用 auth 及其 cache 依赖；不安装 database 或 user，不需要 SQL 数据库或 Redis。
 
-## Features
+## 开发与启动
 
-- Webhook-triggered job execution via HTTP GET requests
-- YAML-based job configuration with environment variable support
-- Token authentication for both webhook triggers and admin API
-- Queue management: wait (enqueue) or terminate (cancel running job)
-- Serial or parallel step execution modes
-- Timeout control for job execution
-- Comprehensive logging with per-job log files
-- Automatic service log rotation based on file size
-- Daemon mode support
-- RESTful API for job management
+工具链版本由项目依赖声明和锁文件统一维护；需要已安装当前红莓 CLI。
 
-## Installation
+当前清单通过标准 `sources` 使用同级红莓框架工作区的 `ui` 与 `boot`。恢复工作区时需保留同级框架源码布局；CLI 根据清单和锁文件解析，不会把缺失的本地来源静默替换为远端版本。UI 公共能力在框架源码统一维护，应用不带控件或主题副本。
 
-### Build from source
-
-```bash
-git clone https://github.com/mapleafgo/deployd.git
-cd deployd
-go build -o bin/deployd .
+```sh
+redberry install
+pnpm dev
 ```
 
-Or using Task:
+浏览器访问 <http://127.0.0.1:5173>，后端默认监听 `127.0.0.1:8088`。未登录访问业务页面进入认证流程。
 
-```bash
-task build
+在被版本控制忽略的 `config/app.local.toml` 设置管理员强口令；CLI 安装生成本机开发密钥。私有配置权限设为 `0600`，不提交口令、密钥或任务运行数据。
+
+```toml
+[red-berry-kit.auth]
+admin_username = "admin"
+admin_password = "替换为独立强口令，不少于15字符且不包含用户名"
 ```
 
-### Configuration
+管理权限限定为 auth 配置来源的 admin 应用管理员。添加其他账户来源不会自动开放管理权限。
 
-Create a global configuration file (default: `/etc/deployd/config.yaml`):
+## 任务与执行
 
-```yaml
-# Global configuration
-token: your-admin-token-here  # Token for admin API access
-port: 8080                     # Server port
-config_dir: /etc/deployd/jobs  # Directory containing job configs
-log_dir: /var/log/deployd     # Directory for job logs
+任务包含名称、说明、绝对工作目录、超时、同名调度策略、环境变量及至少一个步骤。名称长 1–64 位，首字符为字母或数字，其余可含下划线与连字符；超时范围为 1 秒至 24 小时。
 
-# Log rotation configuration (optional)
-log_max_size: 100             # Service log file max size (MB), default 100
-log_max_backups: 3            # Number of backups to keep, default 3
+- `wait`：同名任务按受理顺序串行。
+- `terminate`：取消同名任务已有运行及排队，等旧命令退出后再执行。
+- 超时从真正开始执行计时，不包含排队；不同名称的任务可并发。
+- 串行步骤失败时停止后续步骤；并行步骤各自完成后汇总结果。
+- 任务受理时冻结快照，后续编辑不影响已受理运行。活动或排队的任务不能删除；删除任务保留历史。
+
+界面编辑脚本时使用一个带 `set -e` 的 Shell 脚本。API 的 `commands` 数组则逐项在独立 Shell 中执行；未编辑脚本文本时保留该数组语义。
+
+环境变量以行编辑，步骤变量覆盖任务变量，触发请求的白名单变量再覆盖步骤变量。未知覆盖变量不进入执行环境。
+
+Shell 以服务进程身份执行，不提供沙箱。取消、超时和命令退出时清理同组残留子进程；常驻服务交给 systemd 等服务管理器。
+
+## Webhook
+
+使用任务专属令牌，不使用管理员会话作为触发凭据。推荐请求头，避免把令牌放入 URL：
+
+```sh
+curl -X POST 'http://127.0.0.1:5173/api/hooks/deploy' \
+  -H 'X-Hook-Token: <任务令牌>'
 ```
 
-### Log Rotation
+支持 GET/POST，兼容查询参数 `token` 和旧 `/hook/{name}`；旧入口在开发环境需直连后端或由代理转发。查询参数可覆盖任务或步骤已经声明的环境变量。响应 `202` 表示受理，不代表任务已执行成功。
 
-The service log file (`deployd.log`) automatically rotates when it reaches the specified size:
+必要的 auth 策略配置已在公共配置中声明：Webhook 路径排除默认登录检查，但仍由任务模块核验令牌。任务不存在或令牌错误均拒绝，不泄露任务存在性。
 
-```
-<log_dir>/
-├── deployd.log         # Current log (being written)
-├── deployd.log.1       # 1st backup (most recent)
-├── deployd.log.2       # 2nd backup
-└── deployd.log.3       # 3rd backup (oldest)
-```
+## 历史、日志与恢复
 
-Rotation rules:
-- When `deployd.log` reaches `log_max_size`, rotation is triggered
-- Old backup files are renamed sequentially (`.1` → `.2`, `.2` → `.3`)
-- Current log is renamed to `.1`
-- New empty `deployd.log` is created for continued writing
-- Backups exceeding `log_max_backups` are deleted
+运行状态包括排队、执行中、成功、失败、取消、超时和中断。日志通过带 Bearer 请求头的 fetch SSE 读取，不把管理员 Token 放入 URL。
 
-## Job Configuration
+SSE 事件为 `log`、`status`、`error`；`log.data` 为 Base64 原始字节，`offset` 和 SSE `id` 是累计字节偏移。前端断线续传，展示最近约 1 MiB；服务端保留完整原始日志。连接每 15 秒复查认证，单连接最长 60 秒后续连。
 
-Job configurations are YAML files located in the `config_dir`. Both `.yaml` and `.yml` extensions are supported. Each job defines its execution behavior:
-
-```yaml
-# /etc/deployd/jobs/hello.yaml
-token: your-webhook-token-here  # Token for webhook authentication
-workdir: /tmp                  # Working directory for command execution
-timeout: 5m                 # Maximum execution time
-queue: wait                 # Queue policy: "wait" or "terminate"
-parallel: false             # Execution mode: false=serial, true=parallel
-
-# Environment variables (case-sensitive)
-env:
-  NAME: world
-  GREETING: hello
-
-# Execution steps
-steps:
-  - name: greet
-    commands:
-      - echo $GREETING $NAME
-      - date
-
-  - name: info
-    commands:
-      - pwd
-      - whoami
+```text
+data/
+├── cache/                 # 本地会话缓存
+└── deployd/
+    ├── .lock              # 单进程目录锁
+    ├── tasks/<name>.json   # 任务与Webhook令牌
+    └── runs/
+        ├── <id>.json      # 执行状态
+        └── <id>.log       # 原始日志
 ```
 
-### Configuration Fields
+业务目录通过 `config/app.toml` 的 `[mapleafgo.tasks] data_dir` 配置。任务和状态原子替换，文件 `0600`、新目录 `0700`。同一目录只允许单进程访问。
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `token` | string | Yes | Webhook authentication token |
-| `workdir` | string | Yes | Working directory for command execution |
-| `timeout` | duration | No (30m) | Maximum job execution time |
-| `queue` | string | No (wait) | Queue policy: `wait` or `terminate` |
-| `parallel` | bool | No (false) | Step execution mode |
-| `env` | map | No | Global environment variables (case-sensitive) |
-| `steps` | array | Yes | List of execution steps |
+终态落盘失败时，当前进程仍可查询内存结果并重试保存，存储恢复不重执行命令；活动与待落盘终态合计最多 256 项，满时拒绝新受理。退出会取消任务并最后保存，失败返回关闭错误。异常退出后磁盘未完成记录在下次启动标为 interrupted，不自动重跑。未落盘的内存终态不能保证跨进程保留。
 
-### Step Configuration
+不提供旧 YAML 自动导入、历史自动清理或日志轮转。
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `name` | string | Yes | Step name |
-| `commands` | []string | Yes | List of shell commands |
-| `workdir` | string | No | Working directory (overrides global) |
-| `env` | map | No | Step-level environment variables |
+## API
 
-Example with step-level overrides:
+管理接口要求管理员登录；列表支持 `page`、`size`、`q`，历史另支持精确任务名 `name`。Go 定义是 API 契约源，改动后执行 `pnpm gen`，前端通过模块 Provider 使用生成客户端。
 
-```yaml
-steps:
-  - name: build
-    workdir: /app/src
-    env:
-      GOOS: linux
-      GOARCH: amd64
-    commands:
-      - go build -o /app/bin/app .
+| 方法 | 路径 | 功能 |
+| --- | --- | --- |
+| GET / POST | `/api/tasks` | 列表 / 新增 |
+| GET / PUT / DELETE | `/api/tasks/{name}` | 读取 / 完整更新 / 删除 |
+| POST | `/api/tasks/{name}/runs` | 手动执行 |
+| GET | `/api/runs` | 执行历史 |
+| GET | `/api/runs/{id}` | 运行详情 |
+| POST | `/api/runs/{id}/cancel` | 取消 |
+| GET | `/api/runs/{id}/events` | 日志 SSE |
+| GET / POST | `/api/hooks/{name}` | 任务令牌触发 |
 
-  - name: deploy
-    commands:
-      - cp /app/bin/app /usr/local/bin/
-      - systemctl restart app
+## 验证与构建
+
+```sh
+pnpm gen
+pnpm check
+pnpm test
+pnpm build
+pnpm build:split
 ```
 
-## Usage
+测试使用独立后端 `8081`、前端 `5273` 和 `test-results/` 数据目录，不改开发数据。测试配置中的公开口令与密钥仅供本机测试；浏览器通过 auth 公开测试准备入口完成真实验证码登录。
 
-### Start the server
+单二进制为 `dist/deployd`；分离部署输出为 `dist/backend/deployd` 与 `dist/admin/`。运行配置不随产物打包。
 
-```bash
-# Foreground mode
-./bin/deployd serve
-# Or with custom config path
-./bin/deployd serve -c /path/to/config.yaml
+部署前通过生产私有配置或统一环境变量提供实际 HTTPS `external_origin`、管理员强口令和稳定的签名、状态密钥；代理仅信任明确指定的范围并保留正确外部 Host。后台挂载路径由清单 `web.apps.admin.path` 决定，改动后重新构建。
 
-# Daemon mode (background process)
-./bin/deployd serve -d
-# Or with long option
-./bin/deployd serve --daemon
+```sh
+./dist/deployd serve --env prod
 ```
 
-### Validate job configurations
-
-Before deploying, you can validate your job configuration files:
-
-```bash
-# Check a single job file
-./bin/deployd check /etc/deployd/jobs/hello.yaml
-
-# Check all job files in a directory
-./bin/deployd check /etc/deployd/jobs
-
-# Check all job files in current directory
-./bin/deployd check .
-```
-
-The `check` command validates:
-- Required fields (token, workdir, steps)
-- Queue policy (wait/terminate)
-- Timeout range (1s - 24h)
-- Absolute path requirements
-- POSIX environment variable names
-- Step configuration validity
-
-### Run as systemd service
-
-```bash
-# 1. Copy binary
-sudo cp bin/deployd /usr/local/bin/
-
-# 2. Copy service file
-sudo cp examples/deployd.service /etc/systemd/system/
-
-# 3. Enable and start
-sudo systemctl daemon-reload
-sudo systemctl enable deployd
-sudo systemctl start deployd
-
-# 4. Check status and logs
-sudo systemctl status deployd
-sudo journalctl -u deployd -f
-```
-
-### Trigger a job via webhook
-
-```bash
-# Basic trigger
-curl "http://localhost:8080/hook/hello?token=your-webhook-token-here"
-
-# With environment variable override
-curl "http://localhost:8080/hook/hello?token=your-webhook-token-here&GREETING=hi&NAME=deployd"
-```
-
-Environment variables passed via URL parameters are filtered against the whitelist defined in the job configuration.
-
-### CI/CD Integration
-
-Use deployd as the final step in your CI/CD pipeline to trigger deployment:
-
-**Drone CI example:**
-
-```yaml
-# .drone.yml
-steps:
-  - name: build
-    commands:
-      - go build -o bin/app ./cmd/app
-
-  - name: deploy
-    commands:
-      - |
-        curl "http://your-server:8080/hook/deploy?token=xxx&VERSION=${DRONE_TAG}"
-    when:
-      event: tag
-```
-
-**Job configuration (`/etc/deployd/jobs/deploy.yaml`):**
-
-```yaml
-token: your-webhook-token
-workdir: /app
-timeout: 10m
-queue: terminate  # Cancel old deployment if running
-
-env:
-  VERSION: latest
-
-steps:
-  - name: pull
-    commands:
-      - git pull origin main
-
-  - name: build
-    commands:
-      - go build -o bin/app ./cmd/app
-
-  - name: restart
-    commands:
-      - systemctl restart app
-```
-
-## API Reference
-
-All API endpoints require the `token` query parameter with admin token.
-
-### List Jobs
-
-```
-GET /api/jobs?token=<admin-token>
-```
-
-Query parameters:
-- `name` (optional): Filter by job name
-- `limit` (optional): Maximum results (default: 20)
-
-Response:
-```json
-{
-  "jobs": [
-    {
-      "id": "job_20260320_111405",
-      "name": "hello",
-      "log_file": "job_20260320_111405.log",
-      "updated_at": "2026-03-20 11:14:05"
-    }
-  ],
-  "total": 1
-}
-```
-
-### Get Job Details
-
-```
-GET /api/job/:name/:id?token=<admin-token>
-```
-
-Returns the raw log file content.
-
-### Cancel Running Job
-
-```
-GET /api/cancel/:id?token=<admin-token>
-```
-
-Cancels a currently running job.
-
-## Queue Policies
-
-- **wait**: If a job with the same name is running, new requests wait in queue until completion
-- **terminate**: If a job with the same name is running, cancel it and start the new job immediately
-
-## Execution Modes
-
-- **Serial** (`parallel: false`): Steps execute sequentially; stops on first failure
-- **Parallel** (`parallel: true`): All steps execute concurrently; failures don't stop other steps
-
-## Environment Variables
-
-Environment variables are merged in this order (later overrides earlier):
-1. Global job-level `env`
-2. Step-level `env`
-3. Webhook URL parameters (only if key exists in merged env)
-
-This allows secure parameterization while preventing arbitrary variable injection.
-
-## Logging
-
-### Service Logs
-
-Service logs record runtime information and support automatic rotation:
-
-```
-<log_dir>/
-├── deployd.log         # Current service log
-├── deployd.log.1       # Historical backup
-├── deployd.log.2       # Historical backup
-└── deployd.log.3       # Historical backup
-```
-
-Service log files have `0600` permissions (owner read/write only) to protect sensitive information.
-
-### Job Logs
-
-Job execution logs are stored per job name:
-
-```
-<log_dir>/
-└── jobs/
-    ├── hello/                     # Job name
-    │   └── job_20260320_111405.log
-    ├── deploy/
-    │   └── job_20260320_111420.log
-    └── web/
-        └── job_20260320_111435.log
-```
-
-Log format:
-```
-[2026-03-20 11:14:05] Job started: hello
-[2026-03-20 11:14:05] Step: greet
-[2026-03-20 11:14:05] > echo $GREETING $NAME
-hello world
-[2026-03-20 11:14:05] > date
-Thu Mar 20 11:14:05 CST 2026
-[2026-03-20 11:14:05] Step greet completed in 0.0s
-[2026-03-20 11:14:05] Job completed: success in 0.0s
-```
-
-## Architecture
-
-```
-deployd/
-├── main.go                  # Application entry point
-├── cmd/
-│   ├── serve.go             # Server command
-│   └── check.go             # Configuration validation command
-├── internal/
-│   ├── config/
-│   │   ├── config.go        # Configuration loading
-│   │   └── validator.go     # Configuration validation
-│   ├── handler/
-│   │   ├── api.go           # Admin API handlers
-│   │   └── hook.go          # Webhook handlers
-│   ├── job/
-│   │   ├── manager.go       # Job queue management
-│   │   └── runner.go        # Command execution
-│   ├── logger/
-│   │   ├── logger.go        # Job log recorder
-│   │   └── rotation.go      # Service log rotation
-│   └── store/store.go       # Runtime state storage
-└── examples/
-    ├── config.yaml          # Example global config
-    └── jobs/hello.yaml      # Example job config
-```
-
-## License
-
-MIT License
+开发入口见 [AGENTS.md](AGENTS.md)；任务能力使用约定见 [tasks 使用规范](tasks/README.LLMS.md)。重建状态和本轮证据见 [当前记录](docs/rebuild.md)，未验项不以历史测试成绩替代。

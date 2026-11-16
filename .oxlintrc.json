@@ -1,0 +1,9 @@
+{
+  "plugins": ["typescript", "react"],
+  "rules": {
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/no-non-null-assertion": "error",
+    "react/rules-of-hooks": "error"
+  }
+}

@@ -1,0 +1,4 @@
+# 部署时必须配置真实 HTTPS 外部源及私有管理员口令、稳定密钥。
+# external_origin 由部署私有配置或统一配置环境变量提供，不打包进产物。
+[red-berry-kit.auth]
+allow_http = false

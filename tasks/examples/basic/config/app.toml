@@ -1,0 +1,17 @@
+[red-berry-kit.boot]
+address = "127.0.0.1:8088"
+
+[red-berry-kit.auth]
+issuer = "deployd-tasks-example"
+external_origin = "http://127.0.0.1:8088"
+allow_http = true
+# 以下路由由任务令牌自行授权，不能用后台 Access Token 代替。
+exclude_apis = ["/api/hooks/**", "/hook/**"]
+# 在 app.local.toml 配置独立 signing_seed、state_key、admin_password；禁止提交秘密。
+
+[red-berry-kit.cache]
+driver = "badger"
+path = "data/cache"
+
+[mapleafgo.tasks]
+data_dir = "data/deployd"

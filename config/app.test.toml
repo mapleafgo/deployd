@@ -1,0 +1,18 @@
+# 仅供本机隔离测试，禁止部署环境使用这些公开凭据。
+[red-berry-kit.boot]
+address = "127.0.0.1:8081"
+
+[red-berry-kit.auth]
+test_mode = true
+admin_username = "admin"
+admin_password = "DeploydTesting-47!valid"
+signing_seed = "YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWE="
+state_key = "YmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmI="
+external_origin = "http://127.0.0.1:5273"
+allow_http = true
+
+[red-berry-kit.cache]
+path = "test-results/cache"
+
+[mapleafgo.tasks]
+data_dir = "test-results/deployd"

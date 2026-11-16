@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- 与 UIProvider 使用同一作用域键；仅默认 admin 显式回退旧单应用主题。 -->
+    <script>
+      try {
+        var appName = "admin";
+        var preferenceScope = "github.com/mapleafgo/deployd/" + appName;
+        var stored = localStorage.getItem(preferenceScope + ".color-scheme");
+        if (stored === null && appName === "admin")
+          stored = localStorage.getItem("mantine-color-scheme-value");
+        var scheme = ["light", "dark", "auto"].includes(stored) ? stored : "light";
+        document.documentElement.dataset.mantineColorScheme =
+          scheme === "auto"
+            ? matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light"
+            : scheme;
+      } catch (_) {
+        document.documentElement.dataset.mantineColorScheme = "light";
+      }
+    </script>
+    <title>deployd · 任务管理</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

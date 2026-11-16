@@ -1,0 +1,23 @@
+{
+  "extends": "../.redberry/frontend/tsconfig.tests.json",
+  "files": [
+    "../tasks/tests/contracts.test.ts",
+    "../tasks/tests/duration.test.ts",
+    "../tasks/tests/editor.test.tsx",
+    "../tasks/tests/errors.test.ts",
+    "../tasks/tests/menu.test.tsx",
+    "../tasks/tests/page-lifecycle.test.tsx",
+    "../tasks/tests/presentation.test.tsx",
+    "../tasks/tests/public-contract.test.ts",
+    "../tasks/tests/sse-parser.test.ts",
+    "../tasks/tests/status.test.tsx",
+    "../tasks/tests/stream-auth.test.ts",
+    "../tasks/frontend/run-log-lifecycle.test.tsx",
+    "../tasks/frontend/list-failure.test.tsx"
+  ],
+  "compilerOptions": {
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "types": ["node", "vitest/globals"]
+  }
+}
